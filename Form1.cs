@@ -20,6 +20,7 @@ namespace Fetchy
     {
         private const string USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36";
         private const int MAX_TURNSTILE_WAIT_SECONDS = 15;
+        private const int MAX_TURNSTILE_RETRY = 3;
         private const int TURNSTILE_CHECK_INTERVAL_MS = 1000;
 
         private readonly string _appPath;
@@ -96,13 +97,16 @@ namespace Fetchy
 
         private async Task<bool> WaitForTurnstileBypassAsync()
         {
-            for (int i = 0; i < MAX_TURNSTILE_WAIT_SECONDS; i++)
+            for (int attempt = 0; attempt != MAX_TURNSTILE_RETRY; attempt++)
             {
-                await Task.Delay(TURNSTILE_CHECK_INTERVAL_MS);
-
-                if (!await HasTurnstileAsync())
+                for (int i = 0; i < MAX_TURNSTILE_WAIT_SECONDS; i++)
                 {
-                    return true;
+                    await Task.Delay(TURNSTILE_CHECK_INTERVAL_MS);
+
+                    if (!await HasTurnstileAsync())
+                    {
+                        return true;
+                    }
                 }
             }
 
