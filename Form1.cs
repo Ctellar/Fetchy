@@ -85,7 +85,7 @@ namespace Fetchy
 
             var env = await CoreWebView2Environment.CreateAsync(null, _cachePath);
             await _webView.EnsureCoreWebView2Async(env);
-            _webView.Source = new Uri("https://file.unlocktool.net/");
+            _webView.Source = new Uri("https://file.unlocktool.net/page/index.php");
 
             bool bypassed = await WaitForTurnstileBypassAsync();
 
@@ -120,18 +120,61 @@ namespace Fetchy
             return result == "true";
         }
 
+        private async Task WaitForContentAsync()
+        {
+            for (int i = 0; i < 20; i++)
+            {
+                string raw = await _webView.ExecuteScriptAsync(
+                    "document.body ? document.body.innerText.length : 0");
+
+                int len = int.Parse(raw.Trim('"'));
+
+                if (len > 300)
+                    return;
+
+                await Task.Delay(500);
+            }
+
+            throw new Exception("The content never loaded.");
+        }
+
         private async Task<(string Version, string Url)> ScrapeUpdateDataAsync()
         {
+            await WaitForContentAsync();
             string js = @"
-                (function() {
-                    const titleElement = document.querySelector('button.nav-link.active');
-                    const linkElement = document.querySelector('a[href*=""www.mediafire.com""]');
-                    
-                    return JSON.stringify({
-                        title: titleElement ? titleElement.innerText.trim() : '',
-                        link: linkElement ? linkElement.href : ''
-                    });
-                })();
+            (function () {
+
+                let title = '';
+                let link = '';
+
+                document.querySelectorAll('*').forEach(el => {
+                    const t = el.innerText || '';
+                    if (
+                        t.includes('UnlockTool-') &&
+                        t.includes('Released') &&
+                        t.includes('Update')
+                    ) {
+                        title = t.replace(/\s+/g, ' ').trim();
+                    }
+                });
+
+                document.querySelectorAll('a').forEach(a => {
+                    if (a.href && a.href.includes('mediafire.com/file')) {
+                        link = a.href;
+                    }
+                });
+
+                document.querySelectorAll('[onclick]').forEach(el => {
+                    const oc = el.getAttribute('onclick');
+                    if (oc && oc.includes('mediafire.com')) {
+                        const m = oc.match(/https?:\/\/[^'""\s]+mediafire\.com[^'""\s]+/);
+                        if (m) link = m[0];
+                    }
+                });
+
+                return JSON.stringify({ title, link });
+
+            })();
             ";
 
             string raw = await _webView.ExecuteScriptAsync(js);
@@ -141,7 +184,7 @@ namespace Fetchy
             string title = data.title.ToString();
             string version = title.Split(' ')[0];
             string link = data.link.ToString();
-
+            
             return (version, link);
         }
 
