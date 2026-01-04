@@ -159,7 +159,7 @@ namespace Fetchy
                 });
 
                 document.querySelectorAll('a').forEach(a => {
-                    if (a.href && a.href.includes('mediafire.com/file')) {
+                    if (a.href && a.href.includes('mediafire.com')) {
                         link = a.href;
                     }
                 });
